@@ -90,6 +90,11 @@ We use **Swagger** for interactive API documentation.
 | POST   | `/wallet/fund`        | Fund your wallet             |
 | POST   | `/wallet/convert`     | Convert currency             |
 | POST   | `/wallet/trade`       | Simulate currency trading    |
+| GET    | `/transaction`        | View Transaction History     |
+| GET    | `/fx/rates`           | Retrieve current FX rates    |
+| POST   | `/auth/register`      | Register User                |
+| POST   | `/auth/verify`        | Register User                |
+
 
 ## 📦 Architectural Decisions
 
