@@ -110,6 +110,12 @@ private readonly logger = new Logger(WalletService.name);
 
 
   async convertCurrency(user: User, fromCurrency: string, toCurrency: string, amount: number) {
+
+    const supportedCurrencies = Object.keys(currencies);
+    if (!supportedCurrencies.includes(fromCurrency) || !supportedCurrencies.includes(toCurrency)) {
+      throw new BadRequestException('Unsupported currency selected');
+    }
+
     const fxRate = await this.getFxRate(fromCurrency, toCurrency);
 
     const convertedAmount = amount * fxRate;
@@ -121,6 +127,12 @@ private readonly logger = new Logger(WalletService.name);
   }
 
   async tradeCurrency(user: User, fromCurrency: string, toCurrency: string, amount: number) {
+    
+    const supportedCurrencies = Object.keys(currencies);
+    if (!supportedCurrencies.includes(fromCurrency) || !supportedCurrencies.includes(toCurrency)) {
+      throw new BadRequestException('Unsupported currency selected');
+    }
+
     const queryRunner = this.walletRepo.manager.connection.createQueryRunner();
 
     // Start the transaction

@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt/jwt-auth.guard';
 import { WalletService } from './wallet.service';
 import { User } from '../user/user.entity';
-import { CurrentUser } from '../auth/decorator/current-user.decorator';
+import { CurrentUser } from '../common/decorator/current-user.decorator';
 import { ApiBearerAuth, ApiTags, ApiBody } from '@nestjs/swagger';
 import {
   FundWalletDto,

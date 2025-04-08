@@ -1,7 +1,7 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { TransactionService } from './transaction.service';
 import { JwtAuthGuard } from '../auth/jwt/jwt-auth.guard';
-import { CurrentUser } from '../auth/decorator/current-user.decorator';
+import { CurrentUser } from '../common/decorator/current-user.decorator';
 import { User } from '../user/user.entity';
 import { ApiBearerAuth, ApiTags, ApiQuery } from '@nestjs/swagger';
 

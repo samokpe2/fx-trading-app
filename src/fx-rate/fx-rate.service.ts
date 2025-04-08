@@ -1,8 +1,9 @@
 // src/fx/fx-rate.service.ts
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
+import { currencies } from 'src/data/currencies';
 
 @Injectable()
 export class FxRateService {
@@ -12,6 +13,12 @@ export class FxRateService {
   ) {}
 
   async getExchangeRate(fromCurrency: string, toCurrency: string): Promise<number> {
+
+    const supportedCurrencies = Object.keys(currencies);
+    if (!supportedCurrencies.includes(fromCurrency) || !supportedCurrencies.includes(toCurrency)) {
+      throw new BadRequestException('Unsupported currency selected');
+    }
+
     const cacheKey = `fx_rate_${fromCurrency}_${toCurrency}`;
     const cachedRate = await this.cacheManager.get<number>(cacheKey);
 
