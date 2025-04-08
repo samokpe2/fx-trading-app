@@ -39,13 +39,22 @@ export class WalletService {
     if (amount <= 0) throw new BadRequestException('Amount must be positive');
     
     let wallet = await this.walletRepo.findOne({ where: { user, currency } });
+
+    console.log(amount)
     
     if (!wallet) {
       wallet = this.walletRepo.create({ user, currency, balance: 0 });
     }
 
+    console.log(wallet)
+    wallet.balance = parseFloat(wallet.balance.toString());
+
     wallet.balance += amount;
+
+    console.log(wallet)
     await this.walletRepo.save(wallet);
+
+
 
     // Log the fund transaction
     const transaction = this.transactionRepo.create({
