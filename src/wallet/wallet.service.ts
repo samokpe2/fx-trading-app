@@ -7,9 +7,14 @@ import { Transaction, TransactionType } from '../transaction/transaction.entity'
 import { FxRateService } from '../fx-rate/fx-rate.service'; // Import FX Service for conversion
 import { Inject } from '@nestjs/common';
 import { Cache } from 'cache-manager';
+import { Logger } from '@nestjs/common';
 
 @Injectable()
 export class WalletService {
+
+private readonly logger = new Logger(WalletService.name);
+
+
   constructor(
     @InjectRepository(Wallet) private walletRepo: Repository<Wallet>,
     @InjectRepository(Transaction) private transactionRepo: Repository<Transaction>,
@@ -38,37 +43,54 @@ export class WalletService {
   async fundWallet(user: User, currency: string, amount: number) {
     if (amount <= 0) throw new BadRequestException('Amount must be positive');
     
-    let wallet = await this.walletRepo.findOne({ where: { user, currency } });
+    // Start a new query runner
+    const queryRunner = this.walletRepo.manager.connection.createQueryRunner();
 
-    console.log(amount)
-    
-    if (!wallet) {
-      wallet = this.walletRepo.create({ user, currency, balance: 0 });
+    // Start transaction
+    await queryRunner.startTransaction();
+
+    try {
+      // Find the wallet or create a new one
+      let wallet = await queryRunner.manager.findOne(Wallet, { where: { user, currency } });
+
+      if (!wallet) {
+        wallet = queryRunner.manager.create(Wallet, { user, currency, balance: 0 });
+      }
+
+      // Update wallet balance
+      wallet.balance = parseFloat(wallet.balance.toString());
+      wallet.balance += amount;
+
+      // Save wallet in the transaction context
+      await queryRunner.manager.save(wallet);
+
+      // Log the fund transaction
+      const transaction = queryRunner.manager.create(Transaction, {
+        user,
+        type: TransactionType.FUND,
+        fromCurrency: currency,
+        toCurrency: currency,
+        amount,
+        rate: 1, // No rate required for fund
+      });
+
+      // Save transaction in the transaction context
+      await queryRunner.manager.save(transaction);
+
+      // Commit transaction
+      await queryRunner.commitTransaction();
+
+      return wallet;
+    } catch (error) {
+      // Rollback transaction if error occurs
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      // Release query runner to free resources
+      await queryRunner.release();
     }
-
-    console.log(wallet)
-    wallet.balance = parseFloat(wallet.balance.toString());
-
-    wallet.balance += amount;
-
-    console.log(wallet)
-    await this.walletRepo.save(wallet);
-
-
-
-    // Log the fund transaction
-    const transaction = this.transactionRepo.create({
-      user,
-      type: TransactionType.FUND,
-      fromCurrency: currency,
-      toCurrency: currency,
-      amount,
-      rate: 1, // No rate required for fund
-    });
-
-    await this.transactionRepo.save(transaction);
-    return wallet;
   }
+
 
   async convertCurrency(user: User, fromCurrency: string, toCurrency: string, amount: number) {
     const fxRate = await this.getFxRate(fromCurrency, toCurrency);
@@ -82,51 +104,69 @@ export class WalletService {
   }
 
   async tradeCurrency(user: User, fromCurrency: string, toCurrency: string, amount: number) {
-    // Check if user has enough balance
-    const wallet = await this.walletRepo.findOne({ where: { user, currency: fromCurrency } });
+    const queryRunner = this.walletRepo.manager.connection.createQueryRunner();
 
-    if (!wallet || wallet.balance < amount) {
-      throw new BadRequestException('Insufficient funds');
+    // Start the transaction
+    await queryRunner.startTransaction();
+
+    try {
+      // Check if user has enough balance
+      const wallet = await queryRunner.manager.findOne(Wallet, { where: { user, currency: fromCurrency } });
+      if (!wallet || wallet.balance < amount) {
+        throw new BadRequestException('Insufficient funds');
+      }
+
+      const fxRate = await this.getFxRate(fromCurrency, toCurrency);
+      const convertedAmount = amount * fxRate;
+
+      // Deduct from the source wallet
+      wallet.balance -= amount;
+      await queryRunner.manager.save(wallet);
+
+      // Add to the target wallet
+      let targetWallet = await queryRunner.manager.findOne(Wallet, { where: { user, currency: toCurrency } });
+
+      if (!targetWallet) {
+        targetWallet = queryRunner.manager.create(Wallet, { user, currency: toCurrency, balance: 0 });
+      }
+
+      targetWallet.balance = parseFloat(targetWallet.balance.toString());
+
+      targetWallet.balance += convertedAmount;
+      await queryRunner.manager.save(targetWallet);
+
+      // Log the trade transaction
+      const transaction = queryRunner.manager.create(Transaction, {
+        user,
+        type: TransactionType.TRADE,
+        fromCurrency,
+        toCurrency,
+        amount,
+        rate: fxRate,
+      });
+
+      await queryRunner.manager.save(transaction);
+
+      // Commit the transaction
+      await queryRunner.commitTransaction();
+
+      // Log the successful trade
+      this.logger.log(`Trade successful for user: ${user.email} from ${fromCurrency} to ${toCurrency} amount: ${amount}`);
+
+      return {
+        message: 'Trade successful',
+        fromWallet: wallet,
+        toWallet: targetWallet,
+      };
+    } catch (error) {
+      // If something goes wrong, rollback the transaction
+      await queryRunner.rollbackTransaction();
+      this.logger.error(`Error during trade transaction for user: ${user.email}: ${error.message}`);
+      throw error;
+    } finally {
+      // Release the query runner
+      await queryRunner.release();
     }
-
-    const fxRate = await this.getFxRate(fromCurrency, toCurrency);
-    const convertedAmount = amount * fxRate;
-
-    // Deduct from the source wallet
-    wallet.balance -= amount;
-    await this.walletRepo.save(wallet);
-
-    // Add to the target wallet
-    let targetWallet = await this.walletRepo.findOne({ where: { user, currency: toCurrency } });
-
-    if (!targetWallet) {
-      targetWallet = this.walletRepo.create({ user, currency: toCurrency, balance: 0 });
-    }
-
-
-    targetWallet.balance = parseFloat(targetWallet.balance.toString());
-
-
-    targetWallet.balance += convertedAmount;
-    await this.walletRepo.save(targetWallet);
-
-    // Log the trade transaction
-    const transaction = this.transactionRepo.create({
-      user,
-      type: TransactionType.TRADE,
-      fromCurrency,
-      toCurrency,
-      amount,
-      rate: fxRate,
-    });
-
-    await this.transactionRepo.save(transaction);
-
-    return {
-      message: 'Trade successful',
-      fromWallet: wallet,
-      toWallet: targetWallet,
-    };
   }
 
   private async getFxRate(fromCurrency: string, toCurrency: string): Promise<number> {
