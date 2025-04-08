@@ -8,6 +8,7 @@ import { FxRateService } from '../fx-rate/fx-rate.service'; // Import FX Service
 import { Inject } from '@nestjs/common';
 import { Cache } from 'cache-manager';
 import { Logger } from '@nestjs/common';
+import { currencies } from 'src/data/currencies';
 
 @Injectable()
 export class WalletService {
@@ -24,46 +25,62 @@ private readonly logger = new Logger(WalletService.name);
 
   async getWallet(user: User) {
     // Get wallet balances by currency, if no wallet exists, create it
-    console.log(user)
+    console.log(user);
+  
     const walletBalances = await this.walletRepo.find({ where: { user } });
-
+  
+    // If no wallets exist, create default wallets for NGN and USD
     if (walletBalances.length === 0) {
       const ngnWallet = this.walletRepo.create({ user, currency: 'NGN', balance: 0 });
       const usdWallet = this.walletRepo.create({ user, currency: 'USD', balance: 0 });
       await this.walletRepo.save([ngnWallet, usdWallet]);
-      return { NGN: 0, USD: 0 }; // Default values if no wallet
+      return [
+        { code: 'NGN', name: 'Nigerian Naira', country: 'Nigeria', amount: 0 },
+        { code: 'USD', name: 'US Dollar', country: 'United States', amount: 0 },
+      ]; // Default wallets
     }
-
-    return walletBalances.reduce((acc, wallet) => {
-      acc[wallet.currency] = wallet.balance;
-      return acc;
-    }, {});
+  
+    // Map wallet balances to the desired structure
+    return walletBalances.map(wallet => {
+      const currencyInfo = currencies[wallet.currency];
+      return {
+        code: wallet.currency,
+        name: currencyInfo?.name || 'Unknown Currency',
+        country: currencyInfo?.country || 'Unknown Country',
+        amount: wallet.balance,
+      };
+    });
   }
 
   async fundWallet(user: User, currency: string, amount: number) {
     if (amount <= 0) throw new BadRequestException('Amount must be positive');
-    
+  
+    // Check if the currency exists in the currencies array
+    if (!currencies[currency]) {
+      throw new BadRequestException('Currency not supported');
+    }
+  
     // Start a new query runner
     const queryRunner = this.walletRepo.manager.connection.createQueryRunner();
-
+  
     // Start transaction
     await queryRunner.startTransaction();
-
+  
     try {
       // Find the wallet or create a new one
       let wallet = await queryRunner.manager.findOne(Wallet, { where: { user, currency } });
-
+  
       if (!wallet) {
         wallet = queryRunner.manager.create(Wallet, { user, currency, balance: 0 });
       }
-
+  
       // Update wallet balance
       wallet.balance = parseFloat(wallet.balance.toString());
       wallet.balance += amount;
-
+  
       // Save wallet in the transaction context
       await queryRunner.manager.save(wallet);
-
+  
       // Log the fund transaction
       const transaction = queryRunner.manager.create(Transaction, {
         user,
@@ -73,13 +90,13 @@ private readonly logger = new Logger(WalletService.name);
         amount,
         rate: 1, // No rate required for fund
       });
-
+  
       // Save transaction in the transaction context
       await queryRunner.manager.save(transaction);
-
+  
       // Commit transaction
       await queryRunner.commitTransaction();
-
+  
       return wallet;
     } catch (error) {
       // Rollback transaction if error occurs
