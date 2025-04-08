@@ -1,8 +1,7 @@
-
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { TransactionService } from './transaction.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { CurrentUser } from '../auth/current-user.decorator';
+import { JwtAuthGuard } from '../auth/jwt/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorator/current-user.decorator';
 import { User } from '../user/user.entity';
 import { ApiBearerAuth, ApiTags, ApiQuery } from '@nestjs/swagger';
 
@@ -14,7 +13,11 @@ export class TransactionController {
 
   @UseGuards(JwtAuthGuard)
   @Get()
-  @ApiQuery({ name: 'type', required: false, description: 'Filter transactions by type' }) 
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    description: 'Filter transactions by type',
+  })
   async getTransactions(
     @CurrentUser() user: User, // Get the user from JWT
     @Query('type') type: string | undefined, // Optional type filter

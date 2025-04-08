@@ -103,6 +103,10 @@ export class WalletService {
       targetWallet = this.walletRepo.create({ user, currency: toCurrency, balance: 0 });
     }
 
+
+    targetWallet.balance = parseFloat(targetWallet.balance.toString());
+
+
     targetWallet.balance += convertedAmount;
     await this.walletRepo.save(targetWallet);
 

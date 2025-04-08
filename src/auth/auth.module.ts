@@ -6,7 +6,7 @@ import { AuthService } from './auth.service';
 import { User } from '../user/user.entity';
 import { OtpVerification } from './otp-verification.entity';
 import { MailModule } from '../mail/mail.module';
-import { JwtStrategy } from './jwt.strategy';
+import { JwtStrategy } from './jwt/jwt.strategy';
 import { JwtModule } from '@nestjs/jwt';
 
 @Module({
