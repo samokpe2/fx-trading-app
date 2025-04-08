@@ -99,6 +99,7 @@ We use **Swagger** for interactive API documentation.
 - **Caching Layer:** Exchange rates are cached for performance using NestJS cache manager.
 - **Scalability:** Wallet and currency management designed to add more currencies and trading pairs easily.
 - **Security:** JWT token authentication for protected routes.
+- **Atomicity:** Implemented Query Runners For Database Transactions.
 
 ## 🧩 Key Assumptions
 
@@ -107,6 +108,8 @@ We use **Swagger** for interactive API documentation.
 - ✅ **Positive Transaction Amounts:** All transactions must have positive amounts.
 - ✅ **Caching Exchange Rates:** Exchange rates fetched from external API are cached to minimize latency and API usage.
 - ✅ **Basic Error Handling:** The service handles invalid inputs and operational errors gracefully.
+- ✅ **Currency Validarion:** Ensure that only currencies supported by exhangerate-api.com can be funded 
+
 
 ## 🗺️ Optional Enhancements (Future Work)
 
